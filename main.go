@@ -92,7 +92,6 @@ func omxListen() {
 func omxPlay(url *url.URL) error {
 	Omx = exec.Command(
 		OmxPath,      // path to omxplayer executable
-		"--refresh",  // adjust framerate/resolution to video
 		"--blank",    // set background to black
 		"--adev",     // audio out device
 		"hdmi",       // using hdmi for audio/video
@@ -174,7 +173,7 @@ func httpCommand(c *gin.Context) {
 	// Handle requested commmand
 	Command <- val
 
-	c.JSON(http.StatusOK, nil)
+	c.Status(http.StatusAccepted)
 }
 
 func httpPlay(c *gin.Context) {
@@ -191,7 +190,7 @@ func httpPlay(c *gin.Context) {
 
 	go omxPlay(loc)
 
-	c.JSON(http.StatusAccepted, "")
+	c.Status(http.StatusAccepted)
 }
 
 func httpStatus(c *gin.Context) {
