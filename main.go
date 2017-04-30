@@ -107,7 +107,7 @@ func omxPlay(url *url.URL) error {
 	defer stdin.Close()
 
 	// Redirect output for debugging purposes
-	Omx.Stdout = os.Stdout
+	// Omx.Stdout = os.Stdout
 
 	// Start omxplayer execution.
 	// If successful, something will appear on HDMI display.
@@ -168,8 +168,6 @@ func httpCommand(c *gin.Context) {
 		return
 	}
 
-	fmt.Println("Received command:", val)
-
 	// Handle requested commmand
 	Command <- val
 
@@ -195,8 +193,8 @@ func httpPlay(c *gin.Context) {
 
 func httpStatus(c *gin.Context) {
 	result := struct {
-		Running    bool
-		CurrentURL string
+		Running    bool   `json:"running,omitempty"`
+		CurrentURL string `json:"currentURL,omitempty"`
 	}{
 		Running:    omxIsActive(),
 		CurrentURL: toString(CurrentURL),
