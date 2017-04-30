@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const version = "0.0.1"
+const version = "0.0.2"
 
 var (
 	// Commands mapping to control OMXPlayer, these are piped via STDIN to omxplayer process
@@ -27,7 +27,6 @@ var (
 		"seek_back_fast":    "\x1b\x5b\x42", // Seek -600 second
 		"seek_forward":      "\x1b\x5b\x43", // Seek +30 second
 		"seek_forward_fast": "\x1b\x5b\x41", // Seek +600 seconds
-		"info":              "z",            // Show info
 	}
 
 	// OmxPath is path to omxplayer executable
@@ -242,7 +241,7 @@ func main() {
 
 	router.GET("/status", httpStatus)
 	router.POST("/play", httpPlay)
-	router.POST("/command/:command", httpCommand)
+	router.POST("/commands/:command", httpCommand)
 
 	port := os.Getenv("PORT")
 	if port == "" {
