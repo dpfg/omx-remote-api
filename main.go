@@ -27,6 +27,7 @@ var (
 		"seek_back_fast":    "\x1b\x5b\x42", // Seek -600 second
 		"seek_forward":      "\x1b\x5b\x43", // Seek +30 second
 		"seek_forward_fast": "\x1b\x5b\x41", // Seek +600 seconds
+		"info":              "z",            // Show info
 	}
 
 	// OmxPath is path to omxplayer executable
@@ -45,7 +46,7 @@ var (
 	CurrentURL *url.URL
 
 	// Syslog logger
-	logger *syslog.Writer
+	syslogger *syslog.Writer
 )
 
 // APIErr is a generic structure for all errors returned from API
@@ -125,7 +126,7 @@ func omxPlay(url *url.URL) error {
 	// Wait until child process is finished
 	err = Omx.Wait()
 	if err != nil {
-		logger.Err(fmt.Sprintln("Process exited with error:", err))
+		syslogger.Err(fmt.Sprintln("Process exited with error:", err))
 	}
 
 	omxCleanup()
@@ -212,8 +213,6 @@ func toString(url *url.URL) string {
 }
 
 func terminate(message string, code int) {
-	logger.Crit(message)
-
 	fmt.Println(message)
 	os.Exit(code)
 }
@@ -221,7 +220,7 @@ func terminate(message string, code int) {
 func main() {
 	fmt.Printf("omx-remote-api v%v\n", version)
 
-	logger, _ = syslog.New(syslog.LOG_DAEMON, "omx-remote-api")
+	syslogger, _ = syslog.New(syslog.LOG_NOTICE, "omx-remote-api")
 
 	// Check if player is installed
 	if omxDetect() != nil {
@@ -236,6 +235,7 @@ func main() {
 
 	// Disable debugging mode
 	gin.SetMode("release")
+	gin.LoggerWithWriter(syslogger)
 
 	// Setup HTTP server
 	router := gin.Default()
