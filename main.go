@@ -10,6 +10,8 @@ import (
 	"os/exec"
 	"strings"
 
+	cors "gopkg.in/gin-contrib/cors.v1"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -238,6 +240,10 @@ func main() {
 
 	// Setup HTTP server
 	router := gin.Default()
+
+	// CORS
+	config := cors.DefaultConfig()
+	router.Use(cors.New(config))
 
 	router.GET("/status", httpStatus)
 	router.POST("/play", httpPlay)
