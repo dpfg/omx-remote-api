@@ -15,7 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const version = "0.0.2"
+const version = "0.0.3"
 
 var (
 	// Commands mapping to control OMXPlayer, these are piped via STDIN to omxplayer process
@@ -242,8 +242,7 @@ func main() {
 	router := gin.Default()
 
 	// CORS
-	config := cors.DefaultConfig()
-	router.Use(cors.New(config))
+	router.Use(cors.Default())
 
 	router.GET("/status", httpStatus)
 	router.POST("/play", httpPlay)
