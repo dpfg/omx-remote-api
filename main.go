@@ -44,11 +44,18 @@ var (
 	Command chan string
 
 	// CurrentURL represents currently played media
-	CurrentURL *url.URL
+	CurrentContent *Content
 
 	// Syslog logger
 	syslogger *syslog.Writer
 )
+
+// Content describes model of currently playable video.
+type Content struct {
+	Title      string                 `json:"title,omitempty"`
+	URL        url.URL                `json:"url,omitempty"`
+	Attributes map[string]interface{} `json:"attributes,omitempty"`
+}
 
 // APIErr is a generic structure for all errors returned from API
 type APIErr struct {
@@ -91,13 +98,13 @@ func omxListen() {
 }
 
 // Start omxplayer playback for a given video file. Returns error if start fails.
-func omxPlay(url *url.URL) error {
+func omxPlay(c Content) error {
 	Omx = exec.Command(
-		OmxPath,      // path to omxplayer executable
-		"--blank",    // set background to black
-		"--adev",     // audio out device
-		"hdmi",       // using hdmi for audio/video
-		url.String(), // path to video file
+		OmxPath,        // path to omxplayer executable
+		"--blank",      // set background to black
+		"--adev",       // audio out device
+		"hdmi",         // using hdmi for audio/video
+		c.URL.String(), // path to video file
 	)
 
 	// Grab child process STDIN
@@ -119,7 +126,7 @@ func omxPlay(url *url.URL) error {
 	}
 
 	// Set current file
-	CurrentURL = url
+	CurrentContent = &c
 
 	// Make child's STDIN globally available
 	OmxIn = stdin
@@ -152,7 +159,7 @@ func omxKill() {
 func omxCleanup() {
 	Omx = nil
 	OmxIn = nil
-	CurrentURL = nil
+	CurrentContent = nil
 
 	omxKill()
 }
@@ -182,24 +189,25 @@ func httpPlay(c *gin.Context) {
 		return
 	}
 
-	loc, err := url.Parse(c.Query("url"))
+	content := Content{}
+	err := c.BindJSON(&content)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, APIErr{"Invalid content location"})
+		c.JSON(http.StatusBadRequest, APIErr{err.Error()})
 		return
 	}
 
-	go omxPlay(loc)
+	go omxPlay(content)
 
 	c.Status(http.StatusAccepted)
 }
 
 func httpStatus(c *gin.Context) {
 	result := struct {
-		Running    bool   `json:"running,omitempty"`
-		CurrentURL string `json:"currentURL,omitempty"`
+		Running        bool     `json:"running"`
+		CurrentContent *Content `json:"currentContent,omitempty"`
 	}{
-		Running:    omxIsActive(),
-		CurrentURL: toString(CurrentURL),
+		Running:        omxIsActive(),
+		CurrentContent: CurrentContent,
 	}
 
 	c.JSON(http.StatusOK, result)
