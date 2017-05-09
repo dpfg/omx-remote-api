@@ -150,6 +150,7 @@ func omxPlay(c Content) error {
 		syslogger.Err(fmt.Sprintln("Process exited with error:", err))
 	}
 
+	broadcastStatus()
 	omxCleanup()
 
 	return nil
