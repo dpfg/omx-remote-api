@@ -15,7 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const version = "0.0.3"
+const version = "0.0.4"
 
 var (
 	// Commands mapping to control OMXPlayer, these are piped via STDIN to omxplayer process
@@ -42,6 +42,8 @@ var (
 
 	// Command is a channel to pass along commands to the player routine
 	Command chan string
+
+	Status = make(chan Content)
 
 	// CurrentURL represents currently played media
 	CurrentContent *Content
@@ -91,8 +93,13 @@ func omxListen() {
 
 		// Attempt to kill the process if stop command is requested
 		if command == "stop" {
-			Omx.Process.Kill()
+			err := Omx.Process.Kill()
+			if err != nil {
+				syslogger.Err(err.Error())
+			}
 		}
+
+		broadcastStatus()
 	}
 }
 
@@ -131,6 +138,8 @@ func omxPlay(c Content) error {
 
 	// Set current file
 	CurrentContent = &c
+
+	broadcastStatus()
 
 	// Make child's STDIN globally available
 	OmxIn = stdin
@@ -217,12 +226,17 @@ func httpStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-func toString(url *url.URL) string {
-	if url == nil {
-		return ""
-	}
+func streamStatus(c *gin.Context) {
+	c.Stream(func(w io.Writer) bool {
+		c.SSEvent("status", <-Status)
+		return true
+	})
+}
 
-	return url.String()
+func broadcastStatus() {
+	if CurrentContent != nil {
+		Status <- *CurrentContent
+	}
 }
 
 func terminate(message string, code int) {
@@ -257,6 +271,7 @@ func main() {
 	router.Use(cors.Default())
 
 	router.GET("/status", httpStatus)
+	router.GET("/status/stream", streamStatus)
 	router.POST("/play", httpPlay)
 	router.POST("/commands/:command", httpCommand)
 
