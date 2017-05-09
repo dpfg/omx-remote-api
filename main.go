@@ -52,9 +52,8 @@ var (
 
 // Content describes model of currently playable video.
 type Content struct {
-	Title      string                 `json:"title,omitempty"`
-	URL        url.URL                `json:"url,omitempty"`
-	Attributes map[string]interface{} `json:"attributes,omitempty"`
+	RawURL    string                 `json:"url,omitempty"`
+	MediaInfo map[string]interface{} `json:"mediaInfo,omitempty"`
 }
 
 // APIErr is a generic structure for all errors returned from API
@@ -99,12 +98,17 @@ func omxListen() {
 
 // Start omxplayer playback for a given video file. Returns error if start fails.
 func omxPlay(c Content) error {
+	contentURL, err := url.Parse(c.RawURL)
+	if err != nil {
+		return err
+	}
+
 	Omx = exec.Command(
-		OmxPath,        // path to omxplayer executable
-		"--blank",      // set background to black
-		"--adev",       // audio out device
-		"hdmi",         // using hdmi for audio/video
-		c.URL.String(), // path to video file
+		OmxPath,             // path to omxplayer executable
+		"--blank",           // set background to black
+		"--adev",            // audio out device
+		"hdmi",              // using hdmi for audio/video
+		contentURL.String(), // path to video file
 	)
 
 	// Grab child process STDIN
