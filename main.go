@@ -43,17 +43,18 @@ var (
 	// Command is a channel to pass along commands to the player routine
 	Command chan string
 
-	Status = make(chan Content)
+	// StatusStream channel to broadcast any changes in playing media via SSE
+	StatusStream = make(chan *MediaEntry)
 
-	// CurrentURL represents currently played media
-	CurrentContent *Content
+	// PlayingMedia represents currently playing media
+	PlayingMedia *MediaEntry
 
 	// Syslog logger
 	syslogger *syslog.Writer
 )
 
-// Content describes model of currently playable video.
-type Content struct {
+// MediaEntry describes model of currently playable video.
+type MediaEntry struct {
 	RawURL    string                 `json:"url,omitempty"`
 	MediaInfo map[string]interface{} `json:"mediaInfo,omitempty"`
 }
@@ -104,7 +105,7 @@ func omxListen() {
 }
 
 // Start omxplayer playback for a given video file. Returns error if start fails.
-func omxPlay(c Content) error {
+func omxPlay(c MediaEntry) error {
 	contentURL, err := url.Parse(c.RawURL)
 	if err != nil {
 		return err
@@ -137,7 +138,7 @@ func omxPlay(c Content) error {
 	}
 
 	// Set current file
-	CurrentContent = &c
+	PlayingMedia = &c
 
 	broadcastStatus()
 
@@ -150,8 +151,9 @@ func omxPlay(c Content) error {
 		syslogger.Err(fmt.Sprintln("Process exited with error:", err))
 	}
 
-	broadcastStatus()
 	omxCleanup()
+
+	broadcastStatus()
 
 	return nil
 }
@@ -173,7 +175,7 @@ func omxKill() {
 func omxCleanup() {
 	Omx = nil
 	OmxIn = nil
-	CurrentContent = nil
+	PlayingMedia = nil
 
 	omxKill()
 }
@@ -203,25 +205,25 @@ func httpPlay(c *gin.Context) {
 		return
 	}
 
-	content := Content{}
-	err := c.BindJSON(&content)
+	media := MediaEntry{}
+	err := c.BindJSON(&media)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIErr{err.Error()})
 		return
 	}
 
-	go omxPlay(content)
+	go omxPlay(media)
 
 	c.Status(http.StatusAccepted)
 }
 
 func httpStatus(c *gin.Context) {
 	result := struct {
-		Running        bool     `json:"running"`
-		CurrentContent *Content `json:"currentContent,omitempty"`
+		Running    bool        `json:"running"`
+		MediaEntry *MediaEntry `json:"entry,omitempty"`
 	}{
-		Running:        omxIsActive(),
-		CurrentContent: CurrentContent,
+		Running:    omxIsActive(),
+		MediaEntry: PlayingMedia,
 	}
 
 	c.JSON(http.StatusOK, result)
@@ -229,15 +231,22 @@ func httpStatus(c *gin.Context) {
 
 func streamStatus(c *gin.Context) {
 	c.Stream(func(w io.Writer) bool {
-		c.SSEvent("status", <-Status)
+
+		var data interface{}
+		if entry := <-StatusStream; entry != nil {
+			data = entry
+		} else {
+			data = struct{}{}
+		}
+
+		c.SSEvent("status", data)
 		return true
 	})
 }
 
 func broadcastStatus() {
-	if CurrentContent != nil {
-		Status <- *CurrentContent
-	}
+	syslogger.Info("Broadcast playing media...")
+	StatusStream <- PlayingMedia
 }
 
 func terminate(message string, code int) {
