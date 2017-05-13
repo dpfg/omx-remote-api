@@ -8,4 +8,7 @@ Notable changes:
 - Few fixes in API to make it more Restful
 - Removed files discovery
 - Added ability to play content through the URL
+- Added ability to store unstructured info about playing media
 - Log to syslog
+- SSE Event to stream updates in plyaing media
+
