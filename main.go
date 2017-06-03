@@ -15,7 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const version = "0.0.4"
+const version = "0.0.5"
 
 var (
 	// Commands mapping to control OMXPlayer, these are piped via STDIN to omxplayer process
@@ -151,6 +151,8 @@ func omxPlay(c MediaEntry) error {
 		syslogger.Err(fmt.Sprintln("Process exited with error:", err))
 	}
 
+	syslogger.Info("Process existed without errors.")
+
 	omxCleanup()
 
 	broadcastStatus()
@@ -161,7 +163,14 @@ func omxPlay(c MediaEntry) error {
 // Write a command string to the omxplayer process's STDIN
 func omxWrite(command string) {
 	if OmxIn != nil {
-		io.WriteString(OmxIn, Commands[command])
+		syslogger.Debug("Write omx command: " + command)
+		n, err := io.WriteString(OmxIn, Commands[command])
+		if err != nil {
+			syslogger.Err(err.Error())
+			return
+		}
+
+		syslogger.Debug(fmt.Sprintf("%d bytes succsessfully written", n))
 	}
 }
 
