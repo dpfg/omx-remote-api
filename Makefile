@@ -1,2 +1,2 @@
 release:
-	GOOS=linux GOARCH=arm go build
+	GOOS=linux GOARCH=arm GOARM=7 go build

@@ -15,7 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const version = "0.0.5"
+const version = "0.0.5b1"
 
 var (
 	// Commands mapping to control OMXPlayer, these are piped via STDIN to omxplayer process
@@ -98,6 +98,7 @@ func omxListen() {
 			if err != nil {
 				syslogger.Err(err.Error())
 			}
+			omxCleanup()
 		}
 
 		broadcastStatus()
@@ -128,7 +129,8 @@ func omxPlay(c MediaEntry) error {
 	defer stdin.Close()
 
 	// Redirect output for debugging purposes
-	// Omx.Stdout = os.Stdout
+	Omx.Stdout = os.Stdout
+	Omx.Stderr = os.Stdout
 
 	// Start omxplayer execution.
 	// If successful, something will appear on HDMI display.
@@ -149,9 +151,9 @@ func omxPlay(c MediaEntry) error {
 	err = Omx.Wait()
 	if err != nil {
 		syslogger.Err(fmt.Sprintln("Process exited with error:", err))
+	} else {
+		syslogger.Info("Process exited without errors.")
 	}
-
-	syslogger.Info("Process existed without errors.")
 
 	omxCleanup()
 
@@ -240,16 +242,11 @@ func httpStatus(c *gin.Context) {
 
 func streamStatus(c *gin.Context) {
 	c.Stream(func(w io.Writer) bool {
-
-		var data interface{}
-		if entry := <-StatusStream; entry != nil {
-			data = entry
-		} else {
-			data = struct{}{}
+		if msg, ok := <-StatusStream; ok {
+			c.SSEvent("status", msg)
+			return true
 		}
-
-		c.SSEvent("status", data)
-		return true
+		return false
 	})
 }
 
