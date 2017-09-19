@@ -15,7 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const version = "0.0.5b1"
+const version = "0.0.5b2"
 
 var (
 	// Commands mapping to control OMXPlayer, these are piped via STDIN to omxplayer process
@@ -49,6 +49,9 @@ var (
 	// PlayingMedia represents currently playing media
 	PlayingMedia *MediaEntry
 
+	// PlayList is a list of media entries to play sequentially
+	PlayList *PList
+
 	// Syslog logger
 	syslogger *syslog.Writer
 )
@@ -56,12 +59,63 @@ var (
 // MediaEntry describes model of currently playable video.
 type MediaEntry struct {
 	RawURL    string                 `json:"url,omitempty"`
-	MediaInfo map[string]interface{} `json:"mediaInfo,omitempty"`
+	MediaInfo map[string]interface{} `json:"media_info,omitempty"`
 }
 
 // APIErr is a generic structure for all errors returned from API
 type APIErr struct {
 	Message string `json:"message,omitempty"`
+}
+
+// PList holds the list of media items with pointer to the playing one
+type PList struct {
+	CurrentIndex int
+	Entries      []*MediaEntry
+}
+
+// Next move pointer to a current element to the next element in the list and
+// returns the media entry
+func (pl *PList) Next() *MediaEntry {
+	if len(pl.Entries) == 0 {
+		return nil
+	}
+
+	nextIndex := pl.CurrentIndex + 1
+	if len(pl.Entries) < nextIndex+1 {
+		return nil
+	}
+
+	pl.CurrentIndex = nextIndex
+	return pl.Entries[nextIndex]
+}
+
+// Select move pointer to a current element to the specific element refered by its index
+// and return the media entry
+func (pl *PList) Select(position int) *MediaEntry {
+	plistSize := len(pl.Entries)
+	if plistSize == 0 {
+		return nil
+	}
+
+	if plistSize < position {
+		return nil
+	}
+
+	pl.CurrentIndex = position
+	return pl.Entries[position]
+}
+
+// AddEntry adds a new media entry to the end of the playlist.
+func (pl *PList) AddEntry(entry *MediaEntry) {
+	pl.Entries = append(pl.Entries, entry)
+}
+
+func nextToPlay() *MediaEntry {
+	if PlayList == nil {
+		return nil
+	}
+
+	return PlayList.Next()
 }
 
 // Determine the full path to omxplayer executable. Returns error if not found.
@@ -94,11 +148,7 @@ func omxListen() {
 
 		// Attempt to kill the process if stop command is requested
 		if command == "stop" {
-			err := Omx.Process.Kill()
-			if err != nil {
-				syslogger.Err(err.Error())
-			}
-			omxCleanup()
+			omxStop()
 		}
 
 		broadcastStatus()
@@ -159,6 +209,10 @@ func omxPlay(c MediaEntry) error {
 
 	broadcastStatus()
 
+	if next := nextToPlay(); next != nil {
+		go omxPlay(*next)
+	}
+
 	return nil
 }
 
@@ -174,6 +228,18 @@ func omxWrite(command string) {
 
 		syslogger.Debug(fmt.Sprintf("%d bytes succsessfully written", n))
 	}
+}
+
+func omxStop() {
+	if !omxIsActive() {
+		return
+	}
+
+	err := Omx.Process.Kill()
+	if err != nil {
+		syslogger.Err(err.Error())
+	}
+	omxCleanup()
 }
 
 // Terminate any running omxplayer processes. Fixes random hangs.
@@ -232,12 +298,78 @@ func httpStatus(c *gin.Context) {
 	result := struct {
 		Running    bool        `json:"running"`
 		MediaEntry *MediaEntry `json:"entry,omitempty"`
+		PlayList   *PList      `json:"playlist,omitempty"`
 	}{
 		Running:    omxIsActive(),
 		MediaEntry: PlayingMedia,
+		PlayList:   PlayList,
 	}
 
 	c.JSON(http.StatusOK, result)
+}
+
+func httpNewPList(c *gin.Context) {
+	body := &struct {
+		Entries []*MediaEntry `json:"entries,omitempty"`
+	}{}
+
+	err := c.BindJSON(body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, APIErr{err.Error()})
+		return
+	}
+
+	PlayList = &PList{Entries: body.Entries, CurrentIndex: -1}
+}
+
+func httpPListNext(c *gin.Context) {
+	omxStop()
+
+	mi := PlayList.Next()
+	if mi == nil {
+		c.JSON(http.StatusNoContent, nil)
+		return
+	}
+
+	go omxPlay(*mi)
+
+	c.JSON(http.StatusOK, mi)
+}
+
+func httpPListSelect(c *gin.Context) {
+	omxStop()
+
+	body := &struct {
+		Position int `json:"position,omitempty"`
+	}{}
+
+	err := c.BindJSON(body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, APIErr{Message: err.Error()})
+		return
+	}
+
+	mi := PlayList.Select(body.Position)
+	if mi == nil {
+		c.JSON(http.StatusNoContent, nil)
+		return
+	}
+
+	go omxPlay(*mi)
+
+	c.JSON(http.StatusOK, mi)
+}
+
+func httpPListAddEntry(c *gin.Context) {
+	entry := &MediaEntry{}
+	err := c.BindJSON(entry)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, APIErr{Message: err.Error()})
+		return
+	}
+
+	PlayList.AddEntry(entry)
+	c.JSON(http.StatusCreated, entry)
 }
 
 func streamStatus(c *gin.Context) {
@@ -290,6 +422,12 @@ func main() {
 	router.GET("/status/stream", streamStatus)
 	router.POST("/play", httpPlay)
 	router.POST("/commands/:command", httpCommand)
+
+	// playlist management
+	router.PUT("/plist", httpNewPList)
+	router.POST("/plist/commands/next", httpPListNext)
+	router.POST("/plist/commands/select", httpPListSelect)
+	router.POST("/plist/entries/", httpPListAddEntry)
 
 	port := os.Getenv("PORT")
 	if port == "" {
