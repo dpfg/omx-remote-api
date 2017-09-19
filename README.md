@@ -12,3 +12,8 @@ Notable changes:
 - Log to syslog
 - SSE Event to stream updates in plyaing media
 
+
+### Deployment to raspberry-pi
+```
+> make release pi-deploy
+```
