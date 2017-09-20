@@ -11,7 +11,43 @@ Notable changes:
 - Added ability to store unstructured info about playing media
 - Log to syslog
 - SSE Event to stream updates in plyaing media
+- Playlist support
 
+### API
+
+#### Create new playlist
+```json
+//> PUT /plist
+{
+    "entries": [
+        {
+            "url": "http://media.mp4",
+            "media_info": {
+                "title": "Episode 1: Pilot"
+            }
+        },
+        {
+            "url": "http://media2.mp4",
+            "media_info": {
+                "title": "Episode 2"
+            }
+        }
+    ]
+}
+```
+
+#### Play next entry from the playlist
+```json
+//> POST /plist/commands/next
+```
+
+#### Play specific entry from the playlist (by its position)
+```json
+//> POST /plist/commands/select
+{
+    "position": 4
+}
+```
 
 ### Deployment to raspberry-pi
 ```
