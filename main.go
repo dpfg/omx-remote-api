@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	cors "gopkg.in/gin-contrib/cors.v1"
@@ -15,7 +16,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const version = "0.0.5b2"
+const (
+	version     = "0.0.5b2"
+	defaultPort = 8080
+)
 
 var (
 	// Commands mapping to control OMXPlayer, these are piped via STDIN to omxplayer process
@@ -383,8 +387,8 @@ func streamStatus(c *gin.Context) {
 }
 
 func broadcastStatus() {
-	syslogger.Info("Broadcast playing media...")
-	StatusStream <- PlayingMedia
+	// syslogger.Info("Broadcast playing media...")
+	// StatusStream <- PlayingMedia
 }
 
 func terminate(message string, code int) {
@@ -408,6 +412,13 @@ func main() {
 	// Start a remote command listener
 	go omxListen()
 
+	// Register as a zero config service
+	server, err := startZeroConfService(defaultPort, version)
+	if err != nil {
+		panic(err)
+	}
+	defer server.Shutdown()
+
 	// Disable debugging mode
 	gin.SetMode("release")
 	gin.LoggerWithWriter(syslogger)
@@ -429,11 +440,7 @@ func main() {
 	router.POST("/plist/commands/select", httpPListSelect)
 	router.POST("/plist/entries/", httpPListAddEntry)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
+	port := strconv.Itoa(defaultPort)
 	fmt.Println("Starting server on 0.0.0.0:" + port)
 	router.Run(":" + port)
 }
