@@ -14,11 +14,16 @@ import (
 	cors "gopkg.in/gin-contrib/cors.v1"
 
 	"github.com/gin-gonic/gin"
+	"github.com/grandcat/zeroconf"
 )
 
 const (
 	version     = "0.0.5b2"
 	defaultPort = 8080
+
+	zeroConfName    = "OMX Remote"
+	zeroConfService = "_omx-remote-api._tcp"
+	zeroConfDomain  = "local."
 )
 
 var (
@@ -413,9 +418,10 @@ func main() {
 	go omxListen()
 
 	// Register as a zero config service
-	server, err := startZeroConfService(defaultPort, version)
+	syslogger.Info(fmt.Sprintf("Starting zeroconf service [%s]\n", zeroConfName))
+	server, err := zeroconf.Register(zeroConfName, zeroConfService, zeroConfDomain, defaultPort, nil, nil)
 	if err != nil {
-		panic(err)
+		syslogger.Err(fmt.Sprintf("Cannot start zeroconf service: %s\n", err.Error()))
 	}
 	defer server.Shutdown()
 
