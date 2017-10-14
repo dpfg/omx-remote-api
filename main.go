@@ -37,6 +37,8 @@ var (
 		"seek_back_fast":    "\x1b\x5b\x42", // Seek -600 second
 		"seek_forward":      "\x1b\x5b\x43", // Seek +30 second
 		"seek_forward_fast": "\x1b\x5b\x41", // Seek +600 seconds
+		"next_audio_stream": "k",            // next audio stream
+		"prev_audio_stream": "j",            // previous audio stream
 	}
 
 	// OmxPath is path to omxplayer executable
@@ -47,9 +49,6 @@ var (
 
 	// OmxIn is a child process STDIN pipe to send commands
 	OmxIn io.WriteCloser
-
-	// OmxOut is a child process STDOUT pipe to read status
-	OmxOut io.ReadCloser
 
 	// Command is a channel to pass along commands to the player routine
 	Command chan string
@@ -176,6 +175,7 @@ func omxPlay(c MediaEntry) error {
 	Omx = exec.Command(
 		OmxPath,             // path to omxplayer executable
 		"--blank",           // set background to black
+		"--with-info",       // dump stream format before playback
 		"--adev",            // audio out device
 		"hdmi",              // using hdmi for audio/video
 		contentURL.String(), // path to video file
@@ -197,6 +197,9 @@ func omxPlay(c MediaEntry) error {
 
 	defer stdout.Close()
 
+	// read child process STDOUT to get status
+	// go parseOmxStatus()
+
 	// Start omxplayer execution.
 	// If successful, something will appear on HDMI display.
 	err = Omx.Start()
@@ -211,7 +214,6 @@ func omxPlay(c MediaEntry) error {
 
 	// Make child's STDIN globally available
 	OmxIn = stdin
-	OmxOut = stdout
 
 	// Wait until child process is finished
 	err = Omx.Wait()
