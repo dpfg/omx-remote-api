@@ -3,18 +3,17 @@ package main
 import (
 	"fmt"
 	"io"
-	"log/syslog"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 
 	cors "gopkg.in/gin-contrib/cors.v1"
 
 	"github.com/gin-gonic/gin"
 	"github.com/grandcat/zeroconf"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -49,6 +48,9 @@ var (
 	// OmxIn is a child process STDIN pipe to send commands
 	OmxIn io.WriteCloser
 
+	// OmxOut is a child process STDOUT pipe to read status
+	OmxOut io.ReadCloser
+
 	// Command is a channel to pass along commands to the player routine
 	Command chan string
 
@@ -61,8 +63,8 @@ var (
 	// PlayList is a list of media entries to play sequentially
 	PlayList *PList
 
-	// Syslog logger
-	syslogger *syslog.Writer
+	// LOG is a global app logger
+	LOG *logrus.Logger
 )
 
 // MediaEntry describes model of currently playable video.
@@ -187,9 +189,13 @@ func omxPlay(c MediaEntry) error {
 
 	defer stdin.Close()
 
-	// Redirect output for debugging purposes
-	Omx.Stdout = os.Stdout
-	Omx.Stderr = os.Stdout
+	// Grab child process STDOUT
+	stdout, err := Omx.StdoutPipe()
+	if err != nil {
+		return err
+	}
+
+	defer stdout.Close()
 
 	// Start omxplayer execution.
 	// If successful, something will appear on HDMI display.
@@ -205,13 +211,14 @@ func omxPlay(c MediaEntry) error {
 
 	// Make child's STDIN globally available
 	OmxIn = stdin
+	OmxOut = stdout
 
 	// Wait until child process is finished
 	err = Omx.Wait()
 	if err != nil {
-		syslogger.Err(fmt.Sprintln("Process exited with error:", err))
+		LOG.Error(fmt.Sprintln("Process exited with error:", err))
 	} else {
-		syslogger.Info("Process exited without errors.")
+		LOG.Info("Process exited without errors.")
 	}
 
 	omxCleanup()
@@ -228,14 +235,14 @@ func omxPlay(c MediaEntry) error {
 // Write a command string to the omxplayer process's STDIN
 func omxWrite(command string) {
 	if OmxIn != nil {
-		syslogger.Debug("Write omx command: " + command)
+		LOG.Debug("Write omx command: " + command)
 		n, err := io.WriteString(OmxIn, Commands[command])
 		if err != nil {
-			syslogger.Err(err.Error())
+			LOG.Error(err.Error())
 			return
 		}
 
-		syslogger.Debug(fmt.Sprintf("%d bytes succsessfully written", n))
+		LOG.Debug(fmt.Sprintf("%d bytes succsessfully written", n))
 	}
 }
 
@@ -246,7 +253,7 @@ func omxStop() {
 
 	err := Omx.Process.Kill()
 	if err != nil {
-		syslogger.Err(err.Error())
+		LOG.Error(err.Error())
 	}
 	omxCleanup()
 }
@@ -377,6 +384,10 @@ func httpPListAddEntry(c *gin.Context) {
 		return
 	}
 
+	if PlayList == nil {
+		PlayList = &PList{CurrentIndex: -1}
+	}
+
 	PlayList.AddEntry(entry)
 	c.JSON(http.StatusCreated, entry)
 }
@@ -402,9 +413,8 @@ func terminate(message string, code int) {
 }
 
 func main() {
-	fmt.Printf("omx-remote-api v%v\n", version)
-
-	syslogger, _ = syslog.New(syslog.LOG_NOTICE, "omx-remote-api")
+	LOG = newLogger()
+	LOG.Printf("omx-remote-api v%v", version)
 
 	// Check if player is installed
 	if omxDetect() != nil {
@@ -418,22 +428,25 @@ func main() {
 	go omxListen()
 
 	// Register as a zero config service
-	syslogger.Info(fmt.Sprintf("Starting zeroconf service [%s]\n", zeroConfName))
+	LOG.Infof("Starting zeroconf service [%s]", zeroConfName)
 	server, err := zeroconf.Register(zeroConfName, zeroConfService, zeroConfDomain, defaultPort, nil, nil)
 	if err != nil {
-		syslogger.Err(fmt.Sprintf("Cannot start zeroconf service: %s\n", err.Error()))
+		LOG.Errorf("Cannot start zeroconf service: %s", err.Error())
 	}
 	defer server.Shutdown()
 
 	// Disable debugging mode
 	gin.SetMode("release")
-	gin.LoggerWithWriter(syslogger)
 
 	// Setup HTTP server
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.Recovery())
 
 	// CORS
 	router.Use(cors.Default())
+
+	// Logger
+	router.Use(HTTPLogger(LOG))
 
 	router.GET("/status", httpStatus)
 	router.GET("/status/stream", streamStatus)
@@ -446,7 +459,6 @@ func main() {
 	router.POST("/plist/commands/select", httpPListSelect)
 	router.POST("/plist/entries/", httpPListAddEntry)
 
-	port := strconv.Itoa(defaultPort)
-	fmt.Println("Starting server on 0.0.0.0:" + port)
-	router.Run(":" + port)
+	LOG.Printf("Starting http server on 0.0.0.0:%d", defaultPort)
+	router.Run(fmt.Sprintf(":%d", defaultPort))
 }
