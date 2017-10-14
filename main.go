@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	version     = "0.0.5b2"
+	version     = "0.0.5b3"
 	defaultPort = 8080
 
 	zeroConfName    = "OMX Remote"
@@ -160,8 +160,6 @@ func omxListen() {
 		if command == "stop" {
 			omxStop()
 		}
-
-		broadcastStatus()
 	}
 }
 
@@ -175,6 +173,7 @@ func omxPlay(c MediaEntry) error {
 	Omx = exec.Command(
 		OmxPath,             // path to omxplayer executable
 		"--blank",           // set background to black
+		"--stats",           // Pts and buffer stats
 		"--with-info",       // dump stream format before playback
 		"--adev",            // audio out device
 		"hdmi",              // using hdmi for audio/video
@@ -197,8 +196,17 @@ func omxPlay(c MediaEntry) error {
 
 	defer stdout.Close()
 
+	// Grab child process STDERR
+	stderr, err := Omx.StderrPipe()
+	if err != nil {
+		return err
+	}
+
+	defer stderr.Close()
+
 	// read child process STDOUT to get status
-	// go parseOmxStatus()
+	// status := OmxProcessStatus{Stdout: stdout, Stderr: stderr, Logger: LOG}
+	// status.Start()
 
 	// Start omxplayer execution.
 	// If successful, something will appear on HDMI display.
@@ -207,10 +215,7 @@ func omxPlay(c MediaEntry) error {
 		return err
 	}
 
-	// Set current file
-	PlayingMedia = &c
-
-	broadcastStatus()
+	setPlayingMedia(&c)
 
 	// Make child's STDIN globally available
 	OmxIn = stdin
@@ -224,8 +229,6 @@ func omxPlay(c MediaEntry) error {
 	}
 
 	omxCleanup()
-
-	broadcastStatus()
 
 	if next := nextToPlay(); next != nil {
 		go omxPlay(*next)
@@ -270,7 +273,7 @@ func omxKill() {
 func omxCleanup() {
 	Omx = nil
 	OmxIn = nil
-	PlayingMedia = nil
+	setPlayingMedia(nil)
 
 	omxKill()
 }
@@ -404,9 +407,14 @@ func streamStatus(c *gin.Context) {
 	})
 }
 
-func broadcastStatus() {
-	// syslogger.Info("Broadcast playing media...")
-	// StatusStream <- PlayingMedia
+func setPlayingMedia(m *MediaEntry) {
+	PlayingMedia = m
+
+	select {
+	case StatusStream <- m:
+		LOG.WithField("prefix", "broadcaster").Debug("send update")
+	default:
+	}
 }
 
 func terminate(message string, code int) {
