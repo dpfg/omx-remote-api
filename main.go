@@ -78,8 +78,8 @@ type APIErr struct {
 
 // PList holds the list of media items with pointer to the playing one
 type PList struct {
-	CurrentIndex int
-	Entries      []*MediaEntry
+	CurrentIndex int           `json:"current_index,omitempty"`
+	Entries      []*MediaEntry `json:"entries,omitempty"`
 }
 
 // Next move pointer to a current element to the next element in the list and
