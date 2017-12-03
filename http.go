@@ -115,6 +115,10 @@ func httpPListAddEntry(c *gin.Context) {
 
 	if PlayList == nil {
 		PlayList = &PList{CurrentIndex: -1}
+		if PlayingMedia != nil {
+			PlayList.AddEntry(PlayingMedia)
+			PlayList.CurrentIndex = 0
+		}
 	}
 
 	PlayList.AddEntry(entry)
