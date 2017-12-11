@@ -59,7 +59,7 @@ var (
 	PlayingMedia *MediaEntry
 
 	// PlayList is a list of media entries to play sequentially
-	PlayList *PList
+	PlayList PList
 
 	// LOG is a global app logger
 	LOG *logrus.Logger
@@ -78,11 +78,12 @@ type APIErr struct {
 
 // PList holds the list of media items with pointer to the playing one
 type PList struct {
-	CurrentIndex int           `json:"current_index,omitempty"`
-	Entries      []*MediaEntry `json:"entries,omitempty"`
+	CurrentIndex int          `json:"current_index,omitempty"`
+	Entries      []MediaEntry `json:"entries,omitempty"`
+	AutoPlay     bool         `json:"auto_play,omitempty"`
 }
 
-// Next move pointer to a current element to the next element in the list and
+// Next moves pointer of a current element to the next element in the list and
 // returns the media entry
 func (pl *PList) Next() *MediaEntry {
 	if len(pl.Entries) == 0 {
@@ -95,7 +96,7 @@ func (pl *PList) Next() *MediaEntry {
 	}
 
 	pl.CurrentIndex = nextIndex
-	return pl.Entries[nextIndex]
+	return &pl.Entries[nextIndex]
 }
 
 // Select move pointer to a current element to the specific element refered by its index
@@ -111,20 +112,18 @@ func (pl *PList) Select(position int) *MediaEntry {
 	}
 
 	pl.CurrentIndex = position
-	return pl.Entries[position]
+	return &pl.Entries[position]
 }
 
 // AddEntry adds a new media entry to the end of the playlist.
-func (pl *PList) AddEntry(entry *MediaEntry) {
+func (pl *PList) AddEntry(entry MediaEntry) int {
 	pl.Entries = append(pl.Entries, entry)
+	return len(pl.Entries) - 1
 }
 
-func nextToPlay() *MediaEntry {
-	if PlayList == nil {
-		return nil
-	}
-
-	return PlayList.Next()
+// NewPlayList creates new play list with default settings
+func NewPlayList(entries []MediaEntry) PList {
+	return PList{CurrentIndex: -1, AutoPlay: true}
 }
 
 // Determine the full path to omxplayer executable. Returns error if not found.
@@ -229,7 +228,7 @@ func omxPlay(c MediaEntry) error {
 
 	omxCleanup()
 
-	if next := nextToPlay(); next != nil {
+	if next := PlayList.Next(); PlayList.AutoPlay && next != nil {
 		go omxPlay(*next)
 	}
 
@@ -254,6 +253,8 @@ func omxStop() {
 	if !omxIsActive() {
 		return
 	}
+
+	PlayList.AutoPlay = false
 
 	err := Omx.Process.Kill()
 	if err != nil {
@@ -342,7 +343,8 @@ func main() {
 	router.PUT("/plist", httpNewPList)
 	router.POST("/plist/commands/next", httpPListNext)
 	router.POST("/plist/commands/select", httpPListSelect)
-	router.POST("/plist/entries/", httpPListAddEntry)
+	router.POST("/plist/entries", httpPListAddEntry)
+	router.DELETE("/plist", httpPlistDelete)
 
 	LOG.Printf("Starting http server on 0.0.0.0:%d", defaultPort)
 	router.Run(fmt.Sprintf(":%d", defaultPort))

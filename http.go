@@ -34,6 +34,9 @@ func httpPlay(c *gin.Context) {
 		return
 	}
 
+	// append to the play list and mark as currently playing item
+	PlayList.Select(PlayList.AddEntry(media))
+
 	go omxPlay(media)
 
 	c.Status(http.StatusAccepted)
@@ -43,7 +46,7 @@ func httpStatus(c *gin.Context) {
 	result := struct {
 		Running    bool        `json:"running"`
 		MediaEntry *MediaEntry `json:"entry,omitempty"`
-		PlayList   *PList      `json:"playlist,omitempty"`
+		PlayList   PList       `json:"playlist,omitempty"`
 	}{
 		Running:    omxIsActive(),
 		MediaEntry: PlayingMedia,
@@ -55,7 +58,7 @@ func httpStatus(c *gin.Context) {
 
 func httpNewPList(c *gin.Context) {
 	body := &struct {
-		Entries []*MediaEntry `json:"entries,omitempty"`
+		Entries []MediaEntry `json:"entries,omitempty"`
 	}{}
 
 	err := c.BindJSON(body)
@@ -64,7 +67,8 @@ func httpNewPList(c *gin.Context) {
 		return
 	}
 
-	PlayList = &PList{Entries: body.Entries, CurrentIndex: -1}
+	PlayList = NewPlayList(body.Entries)
+	c.JSON(http.StatusCreated, nil)
 }
 
 func httpPListNext(c *gin.Context) {
@@ -106,23 +110,25 @@ func httpPListSelect(c *gin.Context) {
 }
 
 func httpPListAddEntry(c *gin.Context) {
-	entry := &MediaEntry{}
-	err := c.BindJSON(entry)
+	entry := MediaEntry{}
+	err := c.BindJSON(&entry)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIErr{Message: err.Error()})
 		return
 	}
 
-	if PlayList == nil {
-		PlayList = &PList{CurrentIndex: -1}
-		if PlayingMedia != nil {
-			PlayList.AddEntry(PlayingMedia)
-			PlayList.CurrentIndex = 0
-		}
-	}
-
 	PlayList.AddEntry(entry)
 	c.JSON(http.StatusCreated, entry)
+}
+
+func httpPlistDelete(c *gin.Context) {
+	PlayList = NewPlayList(make([]MediaEntry, 0))
+
+	if PlayingMedia != nil {
+		PlayList.Select(PlayList.AddEntry(*PlayingMedia))
+	}
+
+	c.JSON(http.StatusNoContent, nil)
 }
 
 func streamStatus(c *gin.Context) {
