@@ -59,7 +59,7 @@ var (
 	PlayingMedia *MediaEntry
 
 	// PlayList is a list of media entries to play sequentially
-	PlayList PList
+	PlayList = NewPlayList(make([]MediaEntry, 0))
 
 	// LOG is a global app logger
 	LOG *logrus.Logger
@@ -203,8 +203,8 @@ func omxPlay(c MediaEntry) error {
 	defer stderr.Close()
 
 	// read child process STDOUT to get status
-	// status := OmxProcessStatus{Stdout: stdout, Stderr: stderr, Logger: LOG}
-	// status.Start()
+	status := OmxProcessStatus{Stdout: stdout, Stderr: stderr, Logger: LOG}
+	status.Start()
 
 	// Start omxplayer execution.
 	// If successful, something will appear on HDMI display.
