@@ -118,6 +118,6 @@ func TestPList_AddEntry(t *testing.T) {
 
 	url := plist.Entries[0].RawURL
 	if url != "http://example/1" {
-		t.Error("Unexpected url of entry: %s", url)
+		t.Errorf("Unexpected url of entry: %s", url)
 	}
 }
