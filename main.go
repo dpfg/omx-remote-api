@@ -94,12 +94,11 @@ type PList struct {
 // Next moves pointer of a current element to the next element in the list and
 // returns the media entry
 func (pl *PList) Next() *MediaEntry {
-	if len(pl.Entries) == 0 {
-		return nil
-	}
-
 	nextIndex := pl.CurrentIndex + 1
-	if len(pl.Entries) < nextIndex+1 {
+
+	length := len(pl.Entries)
+	if length < nextIndex+1 {
+		pl.CurrentIndex = positionNone
 		return nil
 	}
 
@@ -114,15 +113,17 @@ func (pl *PList) Select(position int) *MediaEntry {
 		return nil
 	}
 
-	if plistSize < position {
+	if position < 0 || plistSize < position {
 		return nil
 	}
 
 	pl.CurrentIndex = position
 
+	entry := &pl.Entries[position]
+
 	pl.cleanUpHistory()
 
-	return &pl.Entries[position]
+	return entry
 }
 
 // AddEntry adds a new media entry to the end of the playlist.
@@ -136,19 +137,24 @@ func (pl *PList) cleanUpHistory() {
 		return
 	}
 
-	historySize := len(pl.Entries) - (pl.CurrentIndex + 1)
+	historySize := pl.CurrentIndex + 1
 	if historySize < maxHistorySize {
 		return
 	}
 
-	dropIndex := historySize - 1
+	dropIndex := historySize - maxHistorySize - 1
+	if dropIndex < 0 {
+		dropIndex = 0
+	}
+
 	pl.Entries = pl.Entries[dropIndex:]
-	pl.CurrentIndex = pl.CurrentIndex - historySize
+	pl.CurrentIndex = pl.CurrentIndex - dropIndex
+
 }
 
 // NewPlayList creates new play list with default settings
 func NewPlayList(entries []MediaEntry) PList {
-	return PList{CurrentIndex: positionNone, AutoPlay: true}
+	return PList{CurrentIndex: positionNone, AutoPlay: true, Entries: entries}
 }
 
 // Determine the full path to omxplayer executable. Returns error if not found.
