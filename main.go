@@ -76,9 +76,17 @@ type APIErr struct {
 	Message string `json:"message,omitempty"`
 }
 
+const (
+	// defines number of item to preserve in the playlist
+	maxHistorySize = 3
+
+	// indicates that nothing is playing
+	positionNone = -1
+)
+
 // PList holds the list of media items with pointer to the playing one
 type PList struct {
-	CurrentIndex int          `json:"current_index,omitempty"`
+	CurrentIndex int          `json:"current_index"`
 	Entries      []MediaEntry `json:"entries,omitempty"`
 	AutoPlay     bool         `json:"auto_play,omitempty"`
 }
@@ -95,8 +103,7 @@ func (pl *PList) Next() *MediaEntry {
 		return nil
 	}
 
-	pl.CurrentIndex = nextIndex
-	return &pl.Entries[nextIndex]
+	return pl.Select(nextIndex)
 }
 
 // Select move pointer to a current element to the specific element refered by its index
@@ -112,6 +119,9 @@ func (pl *PList) Select(position int) *MediaEntry {
 	}
 
 	pl.CurrentIndex = position
+
+	pl.cleanUpHistory()
+
 	return &pl.Entries[position]
 }
 
@@ -121,9 +131,24 @@ func (pl *PList) AddEntry(entry MediaEntry) int {
 	return len(pl.Entries) - 1
 }
 
+func (pl *PList) cleanUpHistory() {
+	if pl.CurrentIndex == positionNone {
+		return
+	}
+
+	historySize := len(pl.Entries) - (pl.CurrentIndex + 1)
+	if historySize < maxHistorySize {
+		return
+	}
+
+	dropIndex := historySize - 1
+	pl.Entries = pl.Entries[dropIndex:]
+	pl.CurrentIndex = pl.CurrentIndex - historySize
+}
+
 // NewPlayList creates new play list with default settings
 func NewPlayList(entries []MediaEntry) PList {
-	return PList{CurrentIndex: -1, AutoPlay: true}
+	return PList{CurrentIndex: positionNone, AutoPlay: true}
 }
 
 // Determine the full path to omxplayer executable. Returns error if not found.
@@ -228,8 +253,11 @@ func omxPlay(c MediaEntry) error {
 
 	omxCleanup()
 
-	if next := PlayList.Next(); PlayList.AutoPlay && next != nil {
-		go omxPlay(*next)
+	if PlayList.AutoPlay {
+
+		if next := PlayList.Next(); next != nil {
+			go omxPlay(*next)
+		}
 	}
 
 	return nil
