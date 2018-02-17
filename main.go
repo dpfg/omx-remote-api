@@ -194,6 +194,9 @@ func omxListen() {
 
 // Start omxplayer playback for a given video file. Returns error if start fails.
 func omxPlay(c MediaEntry) error {
+	// reset autoplay flag
+	PlayList.AutoPlay = true
+
 	contentURL, err := url.Parse(c.RawURL)
 	if err != nil {
 		return err
@@ -318,11 +321,13 @@ func omxIsActive() bool {
 }
 
 func setPlayingMedia(m *MediaEntry) {
+	LOG.WithField("prefix", "state").Debug("new state: %+v", m)
+
 	PlayingMedia = m
 
 	select {
 	case StatusStream <- m:
-		LOG.WithField("prefix", "broadcaster").Debug("send update")
+		LOG.WithField("prefix", "broadcaster").Debug("sent update: %+v", m)
 	default:
 	}
 }
