@@ -46,7 +46,7 @@ func httpStatus(c *gin.Context) {
 	result := struct {
 		Running    bool        `json:"running"`
 		MediaEntry *MediaEntry `json:"entry,omitempty"`
-		PlayList   PList       `json:"playlist,omitempty"`
+		PlayList   *PList      `json:"playlist,omitempty"`
 	}{
 		Running:    omxIsActive(),
 		MediaEntry: PlayingMedia,

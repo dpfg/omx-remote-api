@@ -153,8 +153,8 @@ func (pl *PList) cleanUpHistory() {
 }
 
 // NewPlayList creates new play list with default settings
-func NewPlayList(entries []MediaEntry) PList {
-	return PList{CurrentIndex: positionNone, AutoPlay: true, Entries: entries}
+func NewPlayList(entries []MediaEntry) *PList {
+	return &PList{CurrentIndex: positionNone, AutoPlay: true, Entries: entries}
 }
 
 // Determine the full path to omxplayer executable. Returns error if not found.
