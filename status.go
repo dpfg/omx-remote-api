@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"io"
 
 	"github.com/sirupsen/logrus"
@@ -22,14 +21,14 @@ func (s *OmxProcessStatus) Start() {
 }
 
 func debugger(pipe io.Reader, logger *logrus.Logger) {
-	buff := bufio.NewReader(pipe)
+	// buff := bufio.NewReader(pipe)
 
-	for {
-		data, err := buff.ReadBytes('\r')
-		if err != nil {
-			logger.Debug(err.Error())
-			break
-		}
-		logger.Debug(string(data))
-	}
+	// for {
+	// 	data, err := buff.ReadBytes('\r')
+	// 	if err != nil {
+	// 		logger.Debug(err.Error())
+	// 		break
+	// 	}
+	// 	logger.Debug(string(data))
+	// }
 }

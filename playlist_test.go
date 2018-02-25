@@ -121,3 +121,40 @@ func TestPList_AddEntry(t *testing.T) {
 		t.Errorf("Unexpected url of entry: %s", url)
 	}
 }
+
+func TestPList_AddAndSelect(t *testing.T) {
+	plist := NewPlayList(make([]MediaEntry, 0))
+	plist.Select(plist.AddEntry(MediaEntry{RawURL: "http://example/1"}))
+
+	if len(plist.Entries) != 1 {
+		t.Errorf("Unexpected size of play list: %d", len(plist.Entries))
+	}
+
+	url := plist.Entries[0].RawURL
+	if url != "http://example/1" {
+		t.Errorf("Unexpected url of entry: %s", url)
+	}
+
+	if plist.CurrentIndex != 0 {
+		t.Error("Unexpected current index")
+	}
+}
+
+func TestPList_AddAddAndSelect(t *testing.T) {
+	plist := NewPlayList(make([]MediaEntry, 0))
+	plist.AddEntry(MediaEntry{RawURL: "http://example/1"})
+	plist.Select(plist.AddEntry(MediaEntry{RawURL: "http://example/2"}))
+
+	if len(plist.Entries) != 2 {
+		t.Errorf("Unexpected size of play list: %d", len(plist.Entries))
+	}
+
+	url := plist.Entries[1].RawURL
+	if url != "http://example/2" {
+		t.Errorf("Unexpected url of entry: %s", url)
+	}
+
+	if plist.CurrentIndex != 1 {
+		t.Error("Unexpected current index")
+	}
+}

@@ -292,6 +292,7 @@ func omxStop() {
 	}
 
 	PlayList.AutoPlay = false
+	PlayList.CurrentIndex = positionNone
 
 	err := Omx.Process.Kill()
 	if err != nil {
