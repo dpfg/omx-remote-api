@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
-	cors "gopkg.in/gin-contrib/cors.v1"
+	cors "github.com/gin-contrib/cors"
 
 	"github.com/gin-gonic/gin"
 	"github.com/grandcat/zeroconf"
@@ -76,87 +76,6 @@ type APIErr struct {
 	Message string `json:"message,omitempty"`
 }
 
-const (
-	// defines number of item to preserve in the playlist
-	maxHistorySize = 3
-
-	// indicates that nothing is playing
-	positionNone = -1
-)
-
-// PList holds the list of media items with pointer to the playing one
-type PList struct {
-	CurrentIndex int          `json:"current_index"`
-	Entries      []MediaEntry `json:"entries,omitempty"`
-	AutoPlay     bool         `json:"auto_play,omitempty"`
-}
-
-// Next moves pointer of a current element to the next element in the list and
-// returns the media entry
-func (pl *PList) Next() *MediaEntry {
-	nextIndex := pl.CurrentIndex + 1
-
-	length := len(pl.Entries)
-	if length < nextIndex+1 {
-		pl.CurrentIndex = positionNone
-		return nil
-	}
-
-	return pl.Select(nextIndex)
-}
-
-// Select move pointer to a current element to the specific element refered by its index
-// and return the media entry
-func (pl *PList) Select(position int) *MediaEntry {
-	plistSize := len(pl.Entries)
-	if plistSize == 0 {
-		return nil
-	}
-
-	if position < 0 || plistSize < position {
-		return nil
-	}
-
-	pl.CurrentIndex = position
-
-	entry := &pl.Entries[position]
-
-	pl.cleanUpHistory()
-
-	return entry
-}
-
-// AddEntry adds a new media entry to the end of the playlist.
-func (pl *PList) AddEntry(entry MediaEntry) int {
-	pl.Entries = append(pl.Entries, entry)
-	return len(pl.Entries) - 1
-}
-
-func (pl *PList) cleanUpHistory() {
-	if pl.CurrentIndex == positionNone {
-		return
-	}
-
-	historySize := pl.CurrentIndex + 1
-	if historySize < maxHistorySize {
-		return
-	}
-
-	dropIndex := historySize - maxHistorySize - 1
-	if dropIndex < 0 {
-		dropIndex = 0
-	}
-
-	pl.Entries = pl.Entries[dropIndex:]
-	pl.CurrentIndex = pl.CurrentIndex - dropIndex
-
-}
-
-// NewPlayList creates new play list with default settings
-func NewPlayList(entries []MediaEntry) *PList {
-	return &PList{CurrentIndex: positionNone, AutoPlay: true, Entries: entries}
-}
-
 // Determine the full path to omxplayer executable. Returns error if not found.
 func omxDetect() error {
 	buff, err := exec.Command("which", "omxplayer").Output()
@@ -195,7 +114,7 @@ func omxListen() {
 // Start omxplayer playback for a given video file. Returns error if start fails.
 func omxPlay(c MediaEntry) error {
 	// reset autoplay flag
-	PlayList.AutoPlay = true
+	// PlayList.AutoPlay = true
 
 	contentURL, err := url.Parse(c.RawURL)
 	if err != nil {
@@ -203,12 +122,10 @@ func omxPlay(c MediaEntry) error {
 	}
 
 	Omx = exec.Command(
-		OmxPath,             // path to omxplayer executable
-		"--blank",           // set background to black
-		"--stats",           // Pts and buffer stats
-		"--with-info",       // dump stream format before playback
-		"--adev",            // audio out device
-		"hdmi",              // using hdmi for audio/video
+		OmxPath,   // path to omxplayer executable
+		"--blank", // set background to black
+		// "--stats",           // Pts and buffer stats
+		// "--with-info",       // dump stream format before playback
 		contentURL.String(), // path to video file
 	)
 
@@ -237,8 +154,8 @@ func omxPlay(c MediaEntry) error {
 	defer stderr.Close()
 
 	// read child process STDOUT to get status
-	status := OmxProcessStatus{Stdout: stdout, Stderr: stderr, Logger: LOG}
-	status.Start()
+	// status := OmxProcessStatus{Stdout: stdout, Stderr: stderr, Logger: LOG}
+	// status.Start()
 
 	// Start omxplayer execution.
 	// If successful, something will appear on HDMI display.
@@ -262,12 +179,12 @@ func omxPlay(c MediaEntry) error {
 
 	omxCleanup()
 
-	if PlayList.AutoPlay {
+	// if PlayList.AutoPlay {
 
-		if next := PlayList.Next(); next != nil {
-			go omxPlay(*next)
-		}
-	}
+	// 	if next := PlayList.Next(); next != nil {
+	// 		go omxPlay(*next)
+	// 	}
+	// }
 
 	return nil
 }
