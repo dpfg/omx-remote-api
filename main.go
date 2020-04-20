@@ -122,8 +122,9 @@ func omxPlay(c MediaEntry) error {
 	}
 
 	Omx = exec.Command(
-		OmxPath,   // path to omxplayer executable
-		"--blank", // set background to black
+		OmxPath,           // path to omxplayer executable
+		"--blank",         // set background to black
+		"--timeout", "60", // set  bigger timeout, default is 10
 		// "--stats",           // Pts and buffer stats
 		// "--with-info",       // dump stream format before playback
 		contentURL.String(), // path to video file
